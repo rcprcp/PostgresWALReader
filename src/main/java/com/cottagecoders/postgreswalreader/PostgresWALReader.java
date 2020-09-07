@@ -102,7 +102,7 @@ public class PostgresWALReader {
     options.addOption(new Option("u", "username", true, "Username"));
     options.addOption(new Option("p", "password", true, "Password"));
     options.addOption(new Option("s", "slotname", true, "Replication slot name"));
-    options.addOption(new Option("d", "decoder", true, "Decoder Plugin [wal2json|test-decoding"));
+    options.addOption(new Option("d", "decoder", true, "Decoder Plugin [wal2json|test-decoder"));
 
     //    HelpFormatter formatter = new HelpFormatter();
     //    String [] parts = System.getProperty("sun.java.command").split(" ");
