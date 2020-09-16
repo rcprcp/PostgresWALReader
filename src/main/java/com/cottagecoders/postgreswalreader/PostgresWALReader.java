@@ -1,5 +1,6 @@
 package com.cottagecoders.postgreswalreader;
 
+import com.google.gson.Gson;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -50,26 +51,25 @@ public class PostgresWALReader {
 
     //configure the replication decoding plugin.
     try {
-      replConnection.getReplicationAPI().createReplicationSlot().logical().withSlotName(cmd.getOptionValue("slotname")).withOutputPlugin(
-          cmd.getOptionValue("decoder")).make();
+      replConnection.getReplicationAPI()
+          .createReplicationSlot()
+          .logical()
+          .withSlotName(cmd.getOptionValue("slotname"))
+          .withOutputPlugin(cmd.getOptionValue("decoder"))
+          .make();
 
     } catch (SQLException ex) {
-      LOG.warn(ex.getMessage());
+      LOG.warn("Exception: {}", ex.getMessage(), ex);
 
     }
 
     try {
       LogSequenceNumber lsn = LogSequenceNumber.valueOf("0/0");
 
-      stream = replConnection.getReplicationAPI()
-          .replicationStream()
-          .logical()
-          .withSlotName(cmd.getOptionValue("slotname"))
-          .withStartPosition(lsn)
-          .withSlotOption("include-xids", true)
-          .withSlotOption("skip-empty-xacts", true)
-          .withStatusInterval(20, TimeUnit.SECONDS)
-          .start();
+      stream = replConnection.getReplicationAPI().replicationStream().logical().withSlotName(cmd.getOptionValue(
+          "slotname")).withStartPosition(lsn).withSlotOption("include-xids", true)
+          //.withSlotOption("skip-empty-xacts", true)
+          .withStatusInterval(20, TimeUnit.SECONDS).start();
 
     } catch (SQLException ex) {
       LOG.error(EXCEPTION, ex.getMessage(), ex);
@@ -87,7 +87,7 @@ public class PostgresWALReader {
           Thread.sleep(200);
           System.out.println("Shutting down ...");
           for (Map.Entry<String, Integer> e : tableCounts.entrySet()) {
-            System.out.println(e.getKey() + " " + e.getValue());
+            System.out.println(e.getKey() + ": " + e.getValue());
           }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
@@ -97,12 +97,12 @@ public class PostgresWALReader {
     });
 
     Options options = new Options();
-    options.addOption(new Option("D", "debug", false, "Turn on debug."));
+    options.addOption(new Option("D", "debug", false, "Enable DEBUG-level log statements."));
     options.addOption(new Option("j", "jdbcurl", true, "JDBC Url"));
     options.addOption(new Option("u", "username", true, "Username"));
     options.addOption(new Option("p", "password", true, "Password"));
     options.addOption(new Option("s", "slotname", true, "Replication slot name"));
-    options.addOption(new Option("d", "decoder", true, "Decoder Plugin [wal2json|test-decoder"));
+    options.addOption(new Option("d", "decoder", true, "Decoder Plugin [wal2json|test-decoding"));
 
     //    HelpFormatter formatter = new HelpFormatter();
     //    String [] parts = System.getProperty("sun.java.command").split(" ");
@@ -119,15 +119,12 @@ public class PostgresWALReader {
     }
 
     PostgresWALReader pgwr = new PostgresWALReader(cmd);
-    pgwr.run();
+    pgwr.run(cmd);
   }
 
-  @java.lang.SuppressWarnings("squid:S2189, squid:S2182")
-  void run() {
+  void run(CommandLine cmd) {
 
-    int lim = 1;
-    while (lim < 100000000) {
-      ++lim;
+    while (true) {   //NOSONAR S2189 S2182
       ByteBuffer msg = null;
       try {
         msg = stream.readPending();
@@ -156,15 +153,25 @@ public class PostgresWALReader {
 
       // print data here.
       LOG.info("{} {}", stream.getLastReceiveLSN().asString(), new String(source, offset, length));
+      String theText = new String(source, offset, length);
 
-      String[] parts = new String(source, offset, length).split(" ");
-
-      if (parts[0].equalsIgnoreCase("table")) {
-        if (tableCounts.containsKey(parts[1])) {
-          tableCounts.put(parts[1], tableCounts.get(parts[1]) + 1);
-        } else {
-          tableCounts.put(parts[1], 1);
+      if (cmd.getOptionValue("decoder").equalsIgnoreCase("wal2json")) {
+        Gson gson = new Gson();
+        Wal2JsonRecord w2j = gson.fromJson(theText, Wal2JsonRecord.class);
+        System.out.println("hello");
+        for(Change c : w2j.getChange()) {
+          String schema = c.getSchema();
+          String tableName = c.getTable();
+          increment(schema, tableName);
         }
+
+      } else if (cmd.getOptionValue("decoder").equalsIgnoreCase("test_decode")) {
+        String[] parts = theText.split(" ");
+        // TODO: need better error checking here.
+        String tableName = parts[0];
+        String schema = parts[1];
+        increment(schema, tableName);
+
       }
 
       stream.setAppliedLSN(stream.getLastReceiveLSN());
@@ -172,4 +179,13 @@ public class PostgresWALReader {
     }
   }
 
+  void increment(String schema, String tableName) {
+    String key = schema + ":" + tableName;
+
+    if (tableCounts.containsKey(key)) {
+      tableCounts.put(key, tableCounts.get(key) + 1);
+    } else {
+      tableCounts.put(key, 1);
+    }
+  }
 }
