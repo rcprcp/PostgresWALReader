@@ -67,8 +67,9 @@ public class PostgresWALReader {
       LogSequenceNumber lsn = LogSequenceNumber.valueOf("0/0");
 
       stream = replConnection.getReplicationAPI().replicationStream().logical().withSlotName(cmd.getOptionValue(
-          "slotname")).withStartPosition(lsn).withSlotOption("include-xids", true)
-          //.withSlotOption("skip-empty-xacts", true)
+          "slotname")).withStartPosition(lsn)
+          .withSlotOption("include-xids", true)
+          .withSlotOption("skip-empty-xacts", true)
           .withStatusInterval(20, TimeUnit.SECONDS).start();
 
     } catch (SQLException ex) {
@@ -102,7 +103,7 @@ public class PostgresWALReader {
     options.addOption(new Option("u", "username", true, "Username"));
     options.addOption(new Option("p", "password", true, "Password"));
     options.addOption(new Option("s", "slotname", true, "Replication slot name"));
-    options.addOption(new Option("d", "decoder", true, "Decoder Plugin [wal2json|test-decoding"));
+    options.addOption(new Option("d", "decoder", true, "Decoder Plugin [wal2json|test-decoding]"));
 
     //    HelpFormatter formatter = new HelpFormatter();
     //    String [] parts = System.getProperty("sun.java.command").split(" ");
@@ -158,8 +159,7 @@ public class PostgresWALReader {
       if (cmd.getOptionValue("decoder").equalsIgnoreCase("wal2json")) {
         Gson gson = new Gson();
         Wal2JsonRecord w2j = gson.fromJson(theText, Wal2JsonRecord.class);
-        System.out.println("hello");
-        for(Change c : w2j.getChange()) {
+        for (Change c : w2j.getChange()) {
           String schema = c.getSchema();
           String tableName = c.getTable();
           increment(schema, tableName);

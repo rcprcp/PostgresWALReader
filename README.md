@@ -10,6 +10,9 @@ Support is mostly in place for the test_decoder, wal2json coming soon.
 The program will (eventually) generate a summary when you break out with CTRL-c. 
 
 - [x] catch CTRL-c
-- [ ] statistics for schemas/tables
+- [ ] handle code if slot already exists
+- [x] statistics for schemas/tables
 - [ ] support for wal2json
-- [ ] statistics regarding transaction complexity.
+- [ ] validate the slot names - no "-" permitted
+- [ ] ensure the correct options for the various decoders
+- [ ] statistics regarding transaction complexity?
